@@ -1,0 +1,134 @@
+stages:
+  - dependencies
+  - build
+  - test
+  - deploy
+
+before_script:
+  - cd QrestaurantFrontend
+
+install_dependencies:
+  image: node:14.18
+  stage: dependencies
+  script:
+    - npm install
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - QrestaurantFrontend/node_modules
+
+# build:
+#   image: node:14.18
+#   stage: build
+#   script:
+#     - npm link @angular/cli@12.2.7
+#     - npm run build
+#   artifacts:
+#     paths:
+#       - $CI_PROJECT_DIR/dist
+#   cache:
+#     key:
+#       files:
+#         - package-lock.json
+#     paths:
+#       - QrestaurantFrontend/node_modules
+#     policy: pull
+
+# lint:
+#   image: node:14.18
+#   stage: test
+#   script:
+#     - npm link @angular/cli@12.2.7
+#     - ng lint
+#   cache:
+#     key:
+#       files:
+#         - package-lock.json
+#     paths:
+#       - QrestaurantFrontend/node_modules
+#     policy: pull
+
+# test:
+#   image: markhobson/node-chrome:latest
+#   stage: test
+#   script:
+#     - npm link @angular/cli@12.2.7
+#     - npm test -- --browsers=ChromeHeadless --watch=false
+#   cache:
+#     key:
+#       files:
+#         - package-lock.json
+#     paths:
+#       - QrestaurantFrontend/node_modules
+#     policy: pull
+
+# system-test:
+#   image: docker:19.03.12
+#   stage: test
+#   services:
+#     - docker:19.03.12-dind
+#   variables:
+#     DOCKER_TLS_CERTDIR: "/certs"
+#   script:
+#     - apk --no-cache add docker-compose
+#     - docker-compose up -d
+#     - docker run -d bramvan/qrestaurant-backend
+
+docker push:
+  image: docker:19.03.12
+  stage: deploy
+  only:
+    - main
+  services:
+    - docker:19.03.12-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - docker login -u bramvan -p wachtwoord docker.io
+    - cd QrestaurantFrontend
+  script:
+    - docker build -t bramvan/qrestaurant-frontend .
+    - docker push index.docker.io/bramvan/qrestaurant-frontend
+
+build:
+  image: node:14.18
+  stage: deploy
+  script:
+    - npm link @angular/cli@12.2.7
+    - ng build --prod --output-path docs --base-href /qrestaurantfrontend/
+    - cd ../
+    - mv QrestaurantFrontend/docs $CI_PROJECT_DIR
+    - cp docs/index.html docs/404.html
+  cache:
+    key:
+      files:
+        - publish
+    paths:
+      - docs
+
+github pages:
+  image: 
+    name: alpine/git:v2.32.0
+    entrypoint: [""]
+  stage: deploy
+  script:
+    - cd ../
+    - git remote set-url origin https://brram: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@github.com/brram/S3-individueel-frontend.git
+    - git config --global user.name "brram"
+    - git config --global user.email "i467893@student.fontys.nl"
+    - git stash --include-untracked
+    - git checkout main
+    - git checkout stash -- .
+    - git add docs
+    - git commit -m "Deploy github pages"
+    - git push origin main
+    - echo "https://brram.github.io/S3-individueel-frontend/"
+  cache:
+    key:
+      files:
+        - publish
+    paths:
+      - docs
+    policy: pull
